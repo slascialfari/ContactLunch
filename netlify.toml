@@ -2,6 +2,17 @@
   command   = "npm run build"
   publish   = "dist"
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[dev]
+  command     = "npm run dev"
+  port        = 8888
+  targetPort  = 5173
+  autoLaunch  = false
+
+# SPA fallback — must come AFTER functions routing
 [[redirects]]
   from   = "/*"
   to     = "/index.html"

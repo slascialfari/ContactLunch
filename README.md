@@ -1,81 +1,62 @@
-# The Daily Lunch — Setup Guide
+# The Daily Lunch — Developer Setup Guide
 
-A canteen lunch subscription app. Guests scan a QR code, see today's menu, pay via PayPal, and get an order number. The manager publishes menus, monitors orders, and checks guests in on a tablet.
+## Architecture
 
----
+| Layer | Technology | Purpose |
+|---|---|---|
+| Frontend | React + Vite | Guest menu/order UI, manager dashboard, check-in view |
+| Backend | Netlify Functions (Node.js) | All API logic: auth, Sheets ops, PayPal capture |
+| Database | Google Sheets (owner's Drive) | Menus and orders — data lives in the owner's Google account |
+| Auth | Google OAuth 2.0 | Manager login, session via HttpOnly JWT cookie |
+| Payments | PayPal REST API | Server-side order creation + capture |
+| Emails | EmailJS REST API | Order confirmation to guests |
+| Persistence | Netlify Blobs | Stores Google refresh token, spreadsheet ID, PayPal merchant info |
 
-## What you need before starting
-
-- A Google account (for the spreadsheet & script)
-- A PayPal Business account (free — developer.paypal.com)
-- An EmailJS account (free — emailjs.com)
-- A Netlify account (free — netlify.com)
-- This GitHub repository connected to Netlify
-
----
-
-## Step 1 — Google Sheets & Apps Script (the database)
-
-### 1.1 Create the spreadsheet
-
-1. Go to [sheets.google.com](https://sheets.google.com) and create a new blank spreadsheet.
-2. Name it **"ContactLunch"** (or anything you like).
-3. You need **two sheets** (tabs at the bottom):
-   - Rename **Sheet1** to: `menus`
-   - Click the **+** button to add a second sheet, name it: `orders`
-4. Leave both sheets empty — the script will add headers automatically.
-
-### 1.2 Create the Apps Script
-
-1. In your spreadsheet, click **Extensions → Apps Script**.
-2. Delete all the default code in the editor.
-3. Open the file `apps-script/Code.gs` from this repository and **copy all of its contents**.
-4. Paste it into the Apps Script editor.
-5. Click **Save** (the floppy disk icon).
-
-### 1.3 Deploy as a web app
-
-1. Click **Deploy → New deployment**.
-2. Click the gear icon ⚙ next to "Type" and select **Web app**.
-3. Fill in:
-   - **Description**: ContactLunch API
-   - **Execute as**: Me
-   - **Who has access**: Anyone
-4. Click **Deploy**.
-5. Google will ask you to authorise — click through and accept.
-6. Copy the **Web app URL** — it looks like:
-   `https://script.google.com/macros/s/AKfycb.../exec`
-7. Save this URL — you'll need it in Step 4.
-
-> **Important**: Every time you change the Apps Script code, you must create a **New deployment** (not update the existing one) to see your changes live.
+**Owner experience**: Sign in with Google → Connect PayPal → done. No keys, no configs, no spreadsheet setup.
 
 ---
 
-## Step 2 — PayPal
+## Developer setup (one-time)
 
-1. Go to [developer.paypal.com](https://developer.paypal.com).
-2. Log in with your PayPal Business account.
-3. Go to **Apps & Credentials**.
-4. You'll see a **Sandbox** tab and a **Live** tab.
-   - Use **Sandbox** for testing (no real money)
-   - Switch to **Live** when you're ready to go live
-5. Under the relevant tab, click your default app (or create a new one).
-6. Copy the **Client ID**.
-7. Save it — you'll need it in Step 4.
+You (the developer) set up three services once. The owner never touches any of this.
 
----
+### 1. Google Cloud Console
 
-## Step 3 — EmailJS (confirmation emails)
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) and create a new project (name it "ContactLunch").
+2. Go to **APIs & Services → Library** and enable:
+   - **Google Sheets API**
+   - **Google Drive API**
+3. Go to **APIs & Services → OAuth consent screen**:
+   - User type: **External**
+   - App name: "The Daily Lunch"
+   - Add scopes: `spreadsheets`, `drive.file`, `email`, `openid`, `profile`
+   - Add the owner's email as a test user (until you publish the app)
+4. Go to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**:
+   - Application type: **Web application**
+   - Authorised redirect URIs — add both:
+     - `https://YOUR-SITE.netlify.app/.netlify/functions/auth-google-callback`
+     - `http://localhost:8888/.netlify/functions/auth-google-callback`
+5. Copy the **Client ID** and **Client Secret**.
+
+### 2. PayPal Developer
+
+1. Go to [developer.paypal.com](https://developer.paypal.com) and log in.
+2. Go to **Apps & Credentials → Create App**:
+   - App name: "ContactLunch"
+   - App type: **Merchant**
+3. Under **App Settings**, enable **Log In with PayPal** and add redirect URIs:
+   - `https://YOUR-SITE.netlify.app/.netlify/functions/auth-paypal-callback`
+   - `http://localhost:8888/.netlify/functions/auth-paypal-callback`
+4. Copy the **Client ID** and **Client Secret** (use the Sandbox tab for testing, Live for production).
+
+### 3. EmailJS
 
 1. Go to [emailjs.com](https://emailjs.com) and create a free account.
-2. **Add an Email Service**:
-   - Click **Email Services → Add New Service**
-   - Choose Gmail (or your provider) and connect your account
-   - Copy the **Service ID** (e.g. `service_abc123`)
-3. **Create an Email Template**:
-   - Click **Email Templates → Create New Template**
-   - Set the Subject to: `Your lunch order #{{order_number}}`
-   - Write the body — use these variables exactly:
+2. **Email Services → Add New Service** — connect Gmail, copy the **Service ID**.
+3. **Email Templates → Create New Template**:
+   - Subject: `Your lunch order #{{order_number}}`
+   - To Email: `{{to_email}}`
+   - Body (use exactly these variable names):
      ```
      Hi {{to_name}},
 
@@ -88,97 +69,104 @@ A canteen lunch subscription app. Guests scan a QR code, see today's menu, pay v
      Date: {{lunch_date}}
 
      Just say your number at the counter.
-
-     See you at lunch!
      ```
-   - In the **To Email** field, set: `{{to_email}}`
-   - Click **Save**
-   - Copy the **Template ID** (e.g. `template_xyz789`)
-4. Go to **Account → General** and copy your **Public Key**.
+   - Copy the **Template ID**.
+4. **Account → General** — copy the **Public Key**.
 
----
+### 4. Netlify deployment
 
-## Step 4 — Netlify & environment variables
+1. Connect the GitHub repo to Netlify (Add new site → Import from GitHub).
+2. Build settings are auto-detected from `netlify.toml`.
+3. Go to **Site configuration → Environment variables** and add:
 
-1. Go to [netlify.com](https://netlify.com) and log in.
-2. Click **Add new site → Import an existing project**.
-3. Choose **GitHub** and select the `ContactLunch` repository.
-4. Build settings (should auto-detect):
-   - Build command: `npm run build`
-   - Publish directory: `dist`
-5. Before deploying, go to **Site configuration → Environment variables**.
-6. Add each of these variables with the values you collected:
-
-| Variable | Where to find it |
+| Variable | Value |
 |---|---|
-| `VITE_PAYPAL_CLIENT_ID` | PayPal Developer — Client ID |
-| `VITE_EMAILJS_SERVICE_ID` | EmailJS — Service ID |
-| `VITE_EMAILJS_TEMPLATE_ID` | EmailJS — Template ID |
-| `VITE_EMAILJS_PUBLIC_KEY` | EmailJS — Account → Public Key |
-| `VITE_APPS_SCRIPT_URL` | Apps Script deployment URL |
-| `VITE_MANAGER_PASSWORD` | Choose your own password |
+| `GOOGLE_CLIENT_ID` | From Google Cloud Console |
+| `GOOGLE_CLIENT_SECRET` | From Google Cloud Console |
+| `PAYPAL_CLIENT_ID` | From PayPal Developer |
+| `PAYPAL_CLIENT_SECRET` | From PayPal Developer |
+| `PAYPAL_ENV` | `sandbox` (change to `live` for production) |
+| `EMAILJS_SERVICE_ID` | From EmailJS |
+| `EMAILJS_TEMPLATE_ID` | From EmailJS |
+| `EMAILJS_PUBLIC_KEY` | From EmailJS |
+| `JWT_SECRET` | Run: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 
-7. Click **Deploy site**.
+4. Deploy. Netlify sets `URL` automatically.
+
+### 5. Generate JWT_SECRET
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Copy the output into the `JWT_SECRET` env var.
 
 ---
 
-## Step 5 — Print the QR code (once)
+## Local development
 
-1. Once deployed, visit: `https://your-site.netlify.app/manager`
-2. Log in with your manager password.
-3. Click the **QR Code** tab.
-4. Print the QR code — it always points to `/lunch` and will show today's menu dynamically.
-5. Stick it on the wall. You'll never need to reprint it.
+```bash
+npm install
+netlify dev   # starts Vite on 5173, functions on 8888, proxied together at 8888
+```
+
+Create a `.env` file (copy from `.env.example`) with your sandbox credentials. The `URL` env var is automatically set by Netlify in production; for local dev it defaults to `http://localhost:8888`.
 
 ---
 
-## Daily operation (for the manager)
+## Owner first-run flow
+
+After you deploy and visit the site, the owner does this **once**:
+
+1. Visit `/manager`
+2. Click **Sign in with Google** — approves Sheets + Drive access
+3. The app automatically creates a **"Canteen Data"** spreadsheet in their Google Drive with the correct tabs (`menus`, `orders`) and headers
+4. Back in `/manager`, click **Connect with PayPal** — logs into PayPal, authorises payment routing
+5. Done. The dashboard is ready.
+
+---
+
+## Daily operation (for the owner)
 
 ### Every morning — publish the menu
-
-1. Go to `https://your-site.netlify.app/manager`
-2. Log in.
-3. Under **Publish Menu**:
-   - Enter today's menu title (e.g. "Pasta & Salad Thursday")
-   - Enter each item on a separate line
-   - Set the price
-   - Set the **order deadline** (e.g. 11:30 AM) — after this, the guest page shows "subscriptions closed"
-4. Click **Publish Menu**.
+1. Go to `/manager` — already signed in (session lasts 7 days)
+2. Fill in: menu title, items (one per line), price, order deadline
+3. Click **Publish Menu**
 
 ### At lunch — check people in
+1. Open `/checkin` on the tablet
+2. Tap each order card as guests collect — it greys out
+3. Auto-refreshes every 30 seconds
 
-1. Go to `/checkin` on your tablet (or bookmark it).
-2. Log in with your manager password.
-3. As guests arrive, they'll say their 3-digit number.
-4. Tap their card to mark them as collected — it turns grey.
-5. The page refreshes automatically every 30 seconds.
-
-### Monitoring orders
-
-- Go to `/manager` → **Today's Orders** tab.
-- You can see everyone's name, dietary notes, and payment status in real time.
-- Click **Refresh** to get the latest.
+### View all orders
+Go to `/manager` → **Today's Orders** tab → click Refresh
 
 ---
 
-## Going live (switching from PayPal Sandbox to real payments)
+## Switching to live PayPal
 
-1. In your PayPal Developer dashboard, switch to the **Live** tab.
-2. Copy the **Live Client ID**.
-3. Go to Netlify → **Environment variables**.
-4. Update `VITE_PAYPAL_CLIENT_ID` with the live Client ID.
-5. Trigger a redeploy (Netlify → Deploys → Trigger deploy).
+1. In PayPal Developer, go to the **Live** tab and copy the Live Client ID and Secret.
+2. In Netlify → Environment variables, update `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, and set `PAYPAL_ENV=live`.
+3. Trigger a redeploy (Netlify → Deploys → Trigger deploy).
+
+---
+
+## Data
+
+All data lives in the owner's Google Drive spreadsheet **"Canteen Data"**:
+- `menus` sheet: one row per day (date, title, items, price, deadline)
+- `orders` sheet: one row per order (date, orderNumber, name, email, dietary, paypalOrderId, paid, collected, createdAt)
+
+The owner can view, export, or edit the spreadsheet at any time at sheets.google.com.
 
 ---
 
 ## Troubleshooting
 
-**"Apps Script URL not configured"** — Check that `VITE_APPS_SCRIPT_URL` is set in Netlify environment variables and redeploy.
+**"App not set up — manager must sign in"** — The Google OAuth flow hasn't been completed. Visit `/manager` and sign in with Google.
 
-**Emails not sending** — Check your EmailJS dashboard for usage (200/month on free tier). Verify the template variable names match exactly.
+**PayPal button doesn't appear** — Check that `PAYPAL_CLIENT_ID` is set and `PAYPAL_ENV` matches the key type (sandbox vs live). Functions logs in Netlify dashboard show any errors.
 
-**PayPal button not appearing** — Check that `VITE_PAYPAL_CLIENT_ID` is correct. In sandbox mode it can take a few seconds to load.
+**Emails not sending** — Check EmailJS dashboard for usage (200/month on free tier). Template variable names must match exactly.
 
-**Menu not showing up** — Make sure you published the menu for today's date. Check the `menus` sheet in Google Sheets to confirm a row exists with today's date in `YYYY-MM-DD` format.
-
-**Apps Script changes not working** — Remember: after editing `Code.gs`, you must create a **New deployment** and update `VITE_APPS_SCRIPT_URL` in Netlify with the new URL.
+**"Blobs unavailable"** warning — You're running `npm run dev` (Vite only) instead of `netlify dev`. Functions require `netlify dev` to work locally.

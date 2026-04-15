@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getMenu, createOrder, todayDate } from '../lib/api.js'
-import { sendOrderConfirmation } from '../lib/emailjs.js'
+import { getMenu, todayDate } from '../lib/api.js'
 import MenuDisplay from '../components/MenuDisplay.jsx'
 import OrderForm from '../components/OrderForm.jsx'
 import PayPalButton from '../components/PayPalButton.jsx'
@@ -46,34 +45,10 @@ export default function LunchPage() {
     setStage('payment')
   }
 
-  async function handlePaymentSuccess(paypalOrderId) {
-    try {
-      const result = await createOrder({
-        date: todayDate(),
-        name: guestDetails.name,
-        email: guestDetails.email,
-        dietary: guestDetails.dietary,
-        paypalOrderId,
-      })
-      const num = result.orderNumber
-      setOrderNumber(num)
-
-      // Send confirmation email (non-blocking)
-      sendOrderConfirmation({
-        name: guestDetails.name,
-        email: guestDetails.email,
-        orderNumber: num,
-        menuTitle: menu.title,
-        items: menu.items,
-        price: menu.price,
-        date: todayDate(),
-      }).catch(console.warn)
-
-      setStage('confirmed')
-    } catch (err) {
-      setErrorMsg(err.message)
-      setStage('error')
-    }
+  // orderNumber is returned by paypal-capture-order after server-side capture + Sheets write
+  function handlePaymentSuccess(orderNumber) {
+    setOrderNumber(orderNumber)
+    setStage('confirmed')
   }
 
   function handlePaymentError(err) {
@@ -133,7 +108,8 @@ export default function LunchPage() {
                 <strong>{guestDetails?.name}</strong>
               </p>
               <PayPalButton
-                price={menu.price}
+                menu={menu}
+                guestDetails={guestDetails}
                 onSuccess={handlePaymentSuccess}
                 onError={handlePaymentError}
               />
