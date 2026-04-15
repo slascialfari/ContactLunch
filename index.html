@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Daily Lunch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      :root {
+        --bg: #1a1a18;
+        --bg-card: #222220;
+        --bg-elevated: #2a2a27;
+        --chalk: #f0ece0;
+        --chalk-muted: #b8b4a4;
+        --chalk-faint: #6e6a5e;
+        --amber: #e8a838;
+        --amber-light: #f0bc5a;
+        --amber-dark: #c48a20;
+        --green: #6aaa64;
+        --red: #c0392b;
+        --border: rgba(240, 236, 224, 0.1);
+        --border-amber: rgba(232, 168, 56, 0.3);
+        --font-heading: 'Playfair Display', Georgia, serif;
+        --font-body: 'DM Sans', system-ui, sans-serif;
+        --radius: 8px;
+        --radius-lg: 14px;
+      }
+      html, body, #root { height: 100%; }
+      body {
+        background: var(--bg);
+        color: var(--chalk);
+        font-family: var(--font-body);
+        font-size: 16px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      ::selection { background: var(--amber); color: var(--bg); }
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: var(--bg); }
+      ::-webkit-scrollbar-thumb { background: var(--chalk-faint); border-radius: 3px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
