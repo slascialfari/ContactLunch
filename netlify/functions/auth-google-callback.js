@@ -27,6 +27,10 @@ exports.handler = async (event) => {
     const accessToken = tokens.access_token
     const refreshToken = tokens.refresh_token
 
+    if (!refreshToken) {
+      throw new Error(`No refresh_token returned by Google. Token keys: ${Object.keys(tokens).join(', ')}`)
+    }
+
     // Get user identity
     const userInfo = await getUserInfo(accessToken)
 
@@ -40,6 +44,12 @@ exports.handler = async (event) => {
       googleEmail:  userInfo.email,
       googleSub:    userInfo.sub,
     })
+
+    // Verify the save worked
+    const saved = await getConfig()
+    if (!saved.googleRefreshToken) {
+      throw new Error('setConfig succeeded but googleRefreshToken not found in Blobs after save')
+    }
 
     // Issue session JWT (contains only identity, not the refresh token)
     const sessionToken = createSessionToken({ sub: userInfo.sub, email: userInfo.email })
