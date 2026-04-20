@@ -28,6 +28,7 @@ export default function ManagerPage() {
 
   // URL error/success params
   const urlError   = searchParams.get('error')
+  const urlMsg     = searchParams.get('msg')
   const urlSuccess = searchParams.get('paypal')
 
   // ── Auth check on mount ──────────────────────────────────────────────────
@@ -115,8 +116,8 @@ export default function ManagerPage() {
           {urlError && (
             <p style={styles.loginError}>
               {urlError === 'google_denied' && 'Google sign-in was cancelled.'}
-              {urlError === 'auth_failed'   && 'Authentication failed — please try again.'}
-              {!['google_denied','auth_failed'].includes(urlError) && `Error: ${urlError}`}
+              {urlError === 'auth_failed'   && `Authentication failed${urlMsg ? ': ' + urlMsg : ' — please try again.'}`}
+              {!['google_denied','auth_failed'].includes(urlError) && `Error: ${urlError}${urlMsg ? ': ' + urlMsg : ''}`}
             </p>
           )}
           <button style={styles.googleBtn} onClick={startGoogleLogin}>
