@@ -4,7 +4,7 @@ async function callSheetsAPI(payload) {
   const res = await fetch('/.netlify/functions/api', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include', // send session cookie
+    credentials: 'include',
     body: JSON.stringify(payload),
   })
   const data = await res.json()
@@ -22,15 +22,10 @@ export async function getMe() {
   const res = await fetch('/.netlify/functions/me', { credentials: 'include' })
   if (!res.ok) throw new Error('Failed to fetch user status')
   return res.json()
-  // Returns: { authenticated, email, setup, paypalClientId, paypalEnv, paypalMerchantEmail }
 }
 
 export function startGoogleLogin() {
   window.location.href = '/.netlify/functions/auth-google'
-}
-
-export function startPayPalConnect() {
-  window.location.href = '/.netlify/functions/auth-paypal'
 }
 
 export function logout() {
@@ -55,26 +50,15 @@ export async function markCollected({ orderNumber, date }) {
   return callSheetsAPI({ action: 'markCollected', orderNumber, date })
 }
 
-// ─── PayPal checkout (server-side order creation) ────────────────────────────
+// ─── Mollie iDEAL checkout ───────────────────────────────────────────────────
 
-export async function createPayPalOrder(amount) {
-  const res = await fetch('/.netlify/functions/paypal-create-order', {
+export async function createMolliePayment({ amount, date, name, email, dietary, menuTitle, menuItems, price }) {
+  const res = await fetch('/.netlify/functions/mollie-create-payment', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ amount }),
+    body: JSON.stringify({ amount, date, name, email, dietary, menuTitle, menuItems, price }),
   })
   const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'Failed to create PayPal order')
-  return data.orderId
-}
-
-export async function capturePayPalOrder({ paypalOrderId, date, name, email, dietary, menuTitle, menuItems, price }) {
-  const res = await fetch('/.netlify/functions/paypal-capture-order', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ paypalOrderId, date, name, email, dietary, menuTitle, menuItems, price }),
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'Payment capture failed')
-  return data // { orderNumber }
+  if (!res.ok) throw new Error(data.error || 'Failed to create payment')
+  return data.checkoutUrl
 }

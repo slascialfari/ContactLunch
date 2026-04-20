@@ -1,9 +1,7 @@
-import { startPayPalConnect } from '../lib/api.js'
-
 // Shows first-run setup steps inline in the manager dashboard.
-// setup: { googleConnected, sheetsReady, paypalConnected }
+// setup: { googleConnected, sheetsReady, paymentReady }
 export default function SetupBanner({ setup }) {
-  const allDone = setup.googleConnected && setup.sheetsReady && setup.paypalConnected
+  const allDone = setup.googleConnected && setup.sheetsReady && setup.paymentReady
 
   if (allDone) return null
 
@@ -21,18 +19,10 @@ export default function SetupBanner({ setup }) {
         />
 
         <Step
-          done={setup.paypalConnected}
+          done={setup.paymentReady}
           number="2"
-          title="PayPal connected"
-          desc="Link your PayPal account so payments route directly to you."
-          action={
-            !setup.paypalConnected && (
-              <button style={styles.connectBtn} onClick={startPayPalConnect}>
-                <span style={styles.ppIcon}>P</span>
-                Connect with PayPal
-              </button>
-            )
-          }
+          title="iDEAL payments ready"
+          desc={setup.paymentReady ? 'Mollie iDEAL is configured and ready to accept payments.' : 'Add MOLLIE_API_KEY to your Netlify environment variables to enable iDEAL payments.'}
         />
       </div>
     </div>

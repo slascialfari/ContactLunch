@@ -1,5 +1,5 @@
 // GET /.netlify/functions/me
-// Returns current auth status, setup completeness, and public config for the frontend.
+// Returns current auth status and setup completeness.
 
 const { getSession } = require('./utils/auth')
 
@@ -11,24 +11,19 @@ const CORS = {
 exports.handler = async (event) => {
   const session = getSession(event)
 
-  const paypalMerchantEmail = process.env.PAYPAL_MERCHANT_EMAIL || null
-
   const setup = {
     googleConnected: !!(session?.refreshToken),
     sheetsReady:     !!(session?.spreadsheetId),
-    paypalConnected: !!paypalMerchantEmail,
+    paymentReady:    !!(process.env.MOLLIE_API_KEY),
   }
 
   return {
     statusCode: 200,
     headers: CORS,
     body: JSON.stringify({
-      authenticated:       !!session,
-      email:               session?.email || null,
+      authenticated: !!session,
+      email:         session?.email || null,
       setup,
-      paypalClientId:      process.env.PAYPAL_CLIENT_ID || null,
-      paypalEnv:           process.env.PAYPAL_ENV || 'sandbox',
-      paypalMerchantEmail,
     }),
   }
 }
