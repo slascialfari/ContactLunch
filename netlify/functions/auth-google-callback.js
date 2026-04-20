@@ -1,10 +1,10 @@
 // GET /.netlify/functions/auth-google-callback
-// Handles Google OAuth callback: exchanges code → stores refresh token → sets session cookie.
+// Exchanges OAuth code → stores refresh token in Blobs (for guest checkout) + JWT cookie (for manager).
 
-const { exchangeCode, getUserInfo, refreshAccessToken } = require('./utils/google')
+const { exchangeCode, getUserInfo } = require('./utils/google')
 const { ensureSpreadsheet } = require('./utils/sheets')
 const { createSessionToken, setSessionCookie } = require('./utils/auth')
-const { getConfig, setConfig } = require('./utils/storage')
+const { setConfig } = require('./utils/storage')
 
 function getSiteUrl() {
   return process.env.URL || 'http://localhost:8888'
@@ -22,45 +22,32 @@ exports.handler = async (event) => {
   }
 
   try {
-    // Exchange code for tokens
-    const tokens      = await exchangeCode(code)
-    const accessToken = tokens.access_token
+    const tokens = await exchangeCode(code)
+    const accessToken  = tokens.access_token
     const refreshToken = tokens.refresh_token
 
     if (!refreshToken) {
-      throw new Error(`No refresh_token returned by Google. Token keys: ${Object.keys(tokens).join(', ')}`)
+      throw new Error('Google did not return a refresh token. Please revoke app access at myaccount.google.com/permissions and try again.')
     }
 
-    // Get user identity
-    const userInfo = await getUserInfo(accessToken)
-
-    // Ensure the spreadsheet exists in user's Drive
+    const userInfo      = await getUserInfo(accessToken)
     const spreadsheetId = await ensureSpreadsheet(accessToken)
 
-    // Persist credentials and spreadsheet ID
-    await setConfig({
-      googleRefreshToken: refreshToken,
+    // Persist to Blobs so guest checkout (PayPal capture) can access Google Sheets.
+    await setConfig({ googleRefreshToken: refreshToken, spreadsheetId })
+
+    // Also embed in JWT cookie for manager API calls (no Blobs read needed per-request).
+    const sessionToken = createSessionToken({
+      sub: userInfo.sub,
+      email: userInfo.email,
+      refreshToken,
       spreadsheetId,
-      googleEmail:  userInfo.email,
-      googleSub:    userInfo.sub,
     })
-
-    // Verify the save worked
-    const saved = await getConfig()
-    if (!saved.googleRefreshToken) {
-      throw new Error('setConfig succeeded but googleRefreshToken not found in Blobs after save')
-    }
-
-    // Issue session JWT (contains only identity, not the refresh token)
-    const sessionToken = createSessionToken({ sub: userInfo.sub, email: userInfo.email })
-    const cookie       = setSessionCookie(sessionToken)
+    const cookie = setSessionCookie(sessionToken)
 
     return {
       statusCode: 302,
-      headers: {
-        Location:   `${getSiteUrl()}/manager`,
-        'Set-Cookie': cookie,
-      },
+      headers: { Location: `${getSiteUrl()}/manager`, 'Set-Cookie': cookie },
       body: '',
     }
   } catch (err) {

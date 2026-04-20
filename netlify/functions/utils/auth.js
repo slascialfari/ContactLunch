@@ -46,8 +46,8 @@ function parseCookies(event) {
   )
 }
 
-function createSessionToken({ sub, email }) {
-  return signJwt({ sub, email })
+function createSessionToken({ sub, email, refreshToken, spreadsheetId }) {
+  return signJwt({ sub, email, refreshToken, spreadsheetId })
 }
 
 function setSessionCookie(token) {

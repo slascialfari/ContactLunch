@@ -1,10 +1,8 @@
 // POST /.netlify/functions/paypal-create-order
 // Creates a PayPal order server-side so the amount can't be tampered on the client.
-// Returns: { orderId }  — used by the PayPal JS SDK on the frontend.
-// No session required (called during guest checkout).
+// Returns: { orderId }
 
 const { createOrder } = require('./utils/paypal')
-const { getConfig } = require('./utils/storage')
 
 const HEADERS = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
 
@@ -26,21 +24,11 @@ exports.handler = async (event) => {
   }
 
   try {
-    const config      = await getConfig()
-    const merchantEmail = config.paypalMerchantEmail || null
-    const orderId     = await createOrder(amount, merchantEmail)
-
-    return {
-      statusCode: 200,
-      headers: HEADERS,
-      body: JSON.stringify({ orderId }),
-    }
+    const merchantEmail = process.env.PAYPAL_MERCHANT_EMAIL || null
+    const orderId = await createOrder(amount, merchantEmail)
+    return { statusCode: 200, headers: HEADERS, body: JSON.stringify({ orderId }) }
   } catch (err) {
     console.error('paypal-create-order error:', err)
-    return {
-      statusCode: 502,
-      headers: HEADERS,
-      body: JSON.stringify({ error: err.message }),
-    }
+    return { statusCode: 502, headers: HEADERS, body: JSON.stringify({ error: err.message }) }
   }
 }

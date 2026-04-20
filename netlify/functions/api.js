@@ -1,9 +1,9 @@
 // POST /.netlify/functions/api
-// Routes all Sheets operations. Uses stored refresh token — no client auth token needed.
+// Routes all Sheets operations. Reads refresh token + spreadsheet ID from session JWT cookie.
 // Manager-only actions (publishMenu, getOrders, markCollected) require session cookie.
-// Public actions (getMenu) work without a session.
+// Public actions (getMenu) require a valid session too (spreadsheetId lives in the JWT).
 
-const { verifySession } = require('./utils/auth')
+const { verifySession, getSession } = require('./utils/auth')
 const { refreshAccessToken } = require('./utils/google')
 const {
   ensureSpreadsheet,
@@ -13,7 +13,6 @@ const {
   createOrder,
   markCollected,
 } = require('./utils/sheets')
-const { getConfig } = require('./utils/storage')
 
 const MANAGER_ACTIONS = new Set(['publishMenu', 'getOrders', 'markCollected'])
 
@@ -54,21 +53,20 @@ exports.handler = async (event) => {
     }
   }
 
-  // Load stored credentials
-  const config = await getConfig()
-  if (!config.googleRefreshToken) {
+  // Get session to read refresh token + spreadsheetId
+  const session = getSession(event)
+  if (!session?.refreshToken) {
     return err('App not set up — manager must sign in with Google first.', 503)
   }
 
   let accessToken
   try {
-    accessToken = await refreshAccessToken(config.googleRefreshToken)
+    accessToken = await refreshAccessToken(session.refreshToken)
   } catch (e) {
     return err(`Google auth error: ${e.message}`, 502)
   }
 
-  // Ensure spreadsheet exists (fast if already in config)
-  let spreadsheetId = config.spreadsheetId
+  let spreadsheetId = session.spreadsheetId
   if (!spreadsheetId) {
     try {
       spreadsheetId = await ensureSpreadsheet(accessToken)

@@ -1,9 +1,7 @@
 // GET /.netlify/functions/me
 // Returns current auth status, setup completeness, and public config for the frontend.
-// Works for both authenticated managers and unauthenticated guests.
 
 const { getSession } = require('./utils/auth')
-const { getConfig } = require('./utils/storage')
 
 const CORS = {
   'Content-Type': 'application/json',
@@ -12,13 +10,12 @@ const CORS = {
 
 exports.handler = async (event) => {
   const session = getSession(event)
-  const config  = await getConfig()
 
-  const paypalMerchantEmail = process.env.PAYPAL_MERCHANT_EMAIL || config.paypalMerchantEmail || null
+  const paypalMerchantEmail = process.env.PAYPAL_MERCHANT_EMAIL || null
 
   const setup = {
-    googleConnected: !!config.googleRefreshToken,
-    sheetsReady:     !!config.spreadsheetId,
+    googleConnected: !!(session?.refreshToken),
+    sheetsReady:     !!(session?.spreadsheetId),
     paypalConnected: !!paypalMerchantEmail,
   }
 
@@ -26,11 +23,11 @@ exports.handler = async (event) => {
     statusCode: 200,
     headers: CORS,
     body: JSON.stringify({
-      authenticated:    !!session,
-      email:            session?.email || null,
+      authenticated:       !!session,
+      email:               session?.email || null,
       setup,
-      paypalClientId:   process.env.PAYPAL_CLIENT_ID || null,
-      paypalEnv:        process.env.PAYPAL_ENV || 'sandbox',
+      paypalClientId:      process.env.PAYPAL_CLIENT_ID || null,
+      paypalEnv:           process.env.PAYPAL_ENV || 'sandbox',
       paypalMerchantEmail,
     }),
   }
