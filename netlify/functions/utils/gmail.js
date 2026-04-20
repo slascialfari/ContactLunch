@@ -9,8 +9,7 @@ async function sendOrderConfirmation({ toEmail, toName, orderNumber, menuTitle, 
   const PUBLIC_KEY  = process.env.EMAILJS_PUBLIC_KEY
 
   if (!SERVICE_ID || !TEMPLATE_ID || !PUBLIC_KEY) {
-    console.warn('EmailJS env vars not set — skipping confirmation email.')
-    return
+    throw new Error('EmailJS env vars not set (EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, EMAILJS_PUBLIC_KEY)')
   }
 
   const formattedDate = new Date(lunchDate + 'T12:00:00').toLocaleDateString('en-GB', {
@@ -43,7 +42,7 @@ async function sendOrderConfirmation({ toEmail, toName, orderNumber, menuTitle, 
 
   if (!res.ok) {
     const text = await res.text()
-    console.warn(`EmailJS send failed (${res.status}): ${text}`)
+    throw new Error(`EmailJS send failed (${res.status}): ${text}`)
   }
 }
 
