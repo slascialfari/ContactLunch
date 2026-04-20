@@ -14,10 +14,12 @@ exports.handler = async (event) => {
   const session = getSession(event)
   const config  = await getConfig()
 
+  const paypalMerchantEmail = process.env.PAYPAL_MERCHANT_EMAIL || config.paypalMerchantEmail || null
+
   const setup = {
     googleConnected: !!config.googleRefreshToken,
     sheetsReady:     !!config.spreadsheetId,
-    paypalConnected: !!config.paypalMerchantEmail,
+    paypalConnected: !!paypalMerchantEmail,
   }
 
   return {
@@ -29,7 +31,7 @@ exports.handler = async (event) => {
       setup,
       paypalClientId:   process.env.PAYPAL_CLIENT_ID || null,
       paypalEnv:        process.env.PAYPAL_ENV || 'sandbox',
-      paypalMerchantEmail: config.paypalMerchantEmail || null,
+      paypalMerchantEmail,
     }),
   }
 }
