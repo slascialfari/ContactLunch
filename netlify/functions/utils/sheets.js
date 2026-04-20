@@ -72,7 +72,7 @@ async function createSpreadsheet(accessToken) {
         data: [{
           startRow: 0, startColumn: 0,
           rowData: [{
-            values: ['date','orderNumber','name','email','dietary','paypalOrderId','paid','collected','createdAt'].map((v) => ({
+            values: ['date','orderNumber','name','email','dietary','paypalOrderId','paid','collected','createdAt','email_sent'].map((v) => ({
               userEnteredValue: { stringValue: v },
             })),
           }],
@@ -194,11 +194,17 @@ async function publishMenu(accessToken, spreadsheetId, { date, title, items, pri
   return { success: true, updated: false }
 }
 
+// Orders columns (1-indexed): A=date B=orderNumber C=name D=email E=dietary
+//   F=paypalOrderId G=paid H=collected I=createdAt J=email_sent
+const COL_COLLECTED  = 8  // H
+const COL_EMAIL_SENT = 10 // J
+
 async function createOrder(accessToken, spreadsheetId, { date, name, email, dietary, paypalOrderId }) {
-  const rows    = await getSheetRows(accessToken, spreadsheetId, 'orders')
-  const todayN  = rows.filter((r) => r.date === date).length
+  const rows     = await getSheetRows(accessToken, spreadsheetId, 'orders')
+  const todayN   = rows.filter((r) => r.date === date).length
   const orderNum = String(todayN + 1).padStart(3, '0')
-  const values  = [date, orderNum, name, email, dietary || '', paypalOrderId, 'TRUE', 'FALSE', new Date().toISOString()]
+  // email_sent starts as FALSE; updated to TRUE after successful send
+  const values   = [date, orderNum, name, email, dietary || '', paypalOrderId, 'TRUE', 'FALSE', new Date().toISOString(), 'FALSE']
   await appendSheetRow(accessToken, spreadsheetId, 'orders', values)
   return { success: true, orderNumber: orderNum }
 }
@@ -207,11 +213,15 @@ async function markCollected(accessToken, spreadsheetId, { date, orderNumber }) 
   const rows = await getSheetRows(accessToken, spreadsheetId, 'orders')
   const idx  = rows.findIndex((r) => r.date === date && r.orderNumber === orderNumber)
   if (idx === -1) throw new Error(`Order ${orderNumber} not found for ${date}`)
-  // row 1 = header, so data row idx 0 = sheet row 2
-  const sheetRow     = idx + 2
-  const collectedCol = 8 // column H (1-indexed)
-  await updateCell(accessToken, spreadsheetId, 'orders', sheetRow, collectedCol, 'TRUE')
+  await updateCell(accessToken, spreadsheetId, 'orders', idx + 2, COL_COLLECTED, 'TRUE')
   return { success: true }
+}
+
+async function markEmailSent(accessToken, spreadsheetId, { date, orderNumber }) {
+  const rows = await getSheetRows(accessToken, spreadsheetId, 'orders')
+  const idx  = rows.findIndex((r) => r.date === date && r.orderNumber === orderNumber)
+  if (idx === -1) return // row disappeared — not fatal
+  await updateCell(accessToken, spreadsheetId, 'orders', idx + 2, COL_EMAIL_SENT, 'TRUE')
 }
 
 module.exports = {
@@ -221,4 +231,5 @@ module.exports = {
   publishMenu,
   createOrder,
   markCollected,
+  markEmailSent,
 }

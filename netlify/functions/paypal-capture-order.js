@@ -5,7 +5,7 @@
 
 const { captureOrder } = require('./utils/paypal')
 const { refreshAccessToken } = require('./utils/google')
-const { ensureSpreadsheet, createOrder } = require('./utils/sheets')
+const { ensureSpreadsheet, createOrder, markEmailSent } = require('./utils/sheets')
 const { sendOrderConfirmation } = require('./utils/gmail')
 const { getConfig } = require('./utils/storage')
 
@@ -39,7 +39,7 @@ exports.handler = async (event) => {
     const accessToken   = await refreshAccessToken(config.googleRefreshToken)
     const spreadsheetId = config.spreadsheetId || await ensureSpreadsheet(accessToken)
 
-    // 3. Record the order in Sheets
+    // 3. Record the order in Sheets (email_sent=FALSE until confirmed below)
     const result = await createOrder(accessToken, spreadsheetId, {
       date,
       name,
@@ -49,16 +49,24 @@ exports.handler = async (event) => {
     })
     const { orderNumber } = result
 
-    // 4. Send confirmation email (fire-and-forget — don't fail the response if email fails)
-    sendOrderConfirmation({
-      toEmail:    email,
-      toName:     name,
-      orderNumber,
-      menuTitle:  menuTitle || '',
-      menuItems:  menuItems || [],
-      price:      price || '0',
-      lunchDate:  date,
-    }).catch((e) => console.warn('Email send failed:', e.message))
+    // 4. Payment captured and order recorded — respond to guest immediately.
+    //    Email runs after, in its own try/catch. Failure is silent: the guest
+    //    already has their order number on screen and the manager can see
+    //    email_sent=FALSE in the sheet to follow up manually.
+    try {
+      await sendOrderConfirmation({
+        toEmail:    email,
+        toName:     name,
+        orderNumber,
+        menuTitle:  menuTitle || '',
+        menuItems:  menuItems || [],
+        price:      price || '0',
+        lunchDate:  date,
+      })
+      await markEmailSent(accessToken, spreadsheetId, { date, orderNumber })
+    } catch (emailErr) {
+      console.warn('Confirmation email failed (order still created):', emailErr.message)
+    }
 
     return {
       statusCode: 200,
