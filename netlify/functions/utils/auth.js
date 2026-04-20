@@ -1,13 +1,40 @@
 // Session management via JWT in HttpOnly cookie.
+// Uses Node.js built-in crypto — no external jwt library needed.
 // The JWT carries only { sub, email } — no secrets.
 // The Google refresh token lives exclusively in Netlify Blobs.
 
-const jwt = require('jsonwebtoken')
+const crypto = require('crypto')
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production'
 const COOKIE_NAME = 'cl_session'
 const MAX_AGE = 60 * 60 * 24 * 7 // 7 days in seconds
 const IS_PROD = process.env.CONTEXT === 'production'
+
+// ─── Minimal HS256 JWT using built-in crypto ──────────────────────────────────
+
+function b64url(str) {
+  return Buffer.from(str).toString('base64url')
+}
+
+function signJwt(payload) {
+  const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+  const body   = b64url(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + MAX_AGE }))
+  const sig    = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url')
+  return `${header}.${body}.${sig}`
+}
+
+function verifyJwt(token) {
+  const parts = token.split('.')
+  if (parts.length !== 3) throw new Error('Malformed token')
+  const [header, body, sig] = parts
+  const expected = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url')
+  if (sig !== expected) throw new Error('Invalid signature')
+  const payload = JSON.parse(Buffer.from(body, 'base64url').toString())
+  if (payload.exp < Math.floor(Date.now() / 1000)) throw new Error('Token expired')
+  return payload
+}
+
+// ─── Cookie helpers ───────────────────────────────────────────────────────────
 
 function parseCookies(event) {
   const header = event.headers['cookie'] || event.headers['Cookie'] || ''
@@ -20,21 +47,18 @@ function parseCookies(event) {
 }
 
 function createSessionToken({ sub, email }) {
-  return jwt.sign({ sub, email }, JWT_SECRET, { expiresIn: MAX_AGE })
+  return signJwt({ sub, email })
 }
 
 function setSessionCookie(token) {
-  const flags = [
+  return [
     `${COOKIE_NAME}=${token}`,
     `Max-Age=${MAX_AGE}`,
     'Path=/',
     'HttpOnly',
     'SameSite=Lax',
     IS_PROD ? 'Secure' : '',
-  ]
-    .filter(Boolean)
-    .join('; ')
-  return flags
+  ].filter(Boolean).join('; ')
 }
 
 function clearSessionCookie() {
@@ -44,10 +68,10 @@ function clearSessionCookie() {
 // Returns { sub, email } or throws if invalid / missing.
 function verifySession(event) {
   const cookies = parseCookies(event)
-  const token = cookies[COOKIE_NAME]
+  const token   = cookies[COOKIE_NAME]
   if (!token) throw new Error('Not authenticated')
   try {
-    return jwt.verify(token, JWT_SECRET)
+    return verifyJwt(token)
   } catch {
     throw new Error('Session expired — please log in again')
   }
