@@ -21,14 +21,10 @@ async function getConfig() {
 }
 
 async function setConfig(updates) {
-  try {
-    const { getStore } = require('@netlify/blobs')
-    const store   = getStore(STORE_NAME)
-    const current = await getConfig()
-    await store.setJSON(CONFIG_KEY, { ...current, ...updates })
-  } catch (err) {
-    console.warn('Blobs write failed:', err.message)
-  }
+  const { getStore } = require('@netlify/blobs')
+  const store   = getStore(STORE_NAME)
+  const current = await getConfig()
+  await store.setJSON(CONFIG_KEY, { ...current, ...updates })
 }
 
 module.exports = { getConfig, setConfig }
