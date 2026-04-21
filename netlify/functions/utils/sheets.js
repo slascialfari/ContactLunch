@@ -226,6 +226,7 @@ async function markEmailSent(accessToken, spreadsheetId, { date, orderNumber }) 
 
 module.exports = {
   ensureSpreadsheet,
+  getSheetRows,
   getMenu,
   getOrders,
   publishMenu,

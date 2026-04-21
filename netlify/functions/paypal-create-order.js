@@ -1,6 +1,6 @@
 // POST /.netlify/functions/paypal-create-order
-// Creates a PayPal order server-side so the amount can't be tampered on the client.
-// Returns: { orderId }
+// Creates a PayPal order server-side with guest metadata in custom_id.
+// Returns { orderId }.
 
 const { createOrder } = require('./utils/paypal')
 
@@ -12,20 +12,23 @@ exports.handler = async (event) => {
   }
 
   let payload
-  try {
-    payload = JSON.parse(event.body || '{}')
-  } catch {
+  try { payload = JSON.parse(event.body || '{}') } catch {
     return { statusCode: 400, headers: HEADERS, body: JSON.stringify({ error: 'Invalid JSON' }) }
   }
 
-  const { amount } = payload
-  if (!amount || isNaN(Number(amount))) {
-    return { statusCode: 400, headers: HEADERS, body: JSON.stringify({ error: 'Missing or invalid amount' }) }
+  const { amount, date, name, email, dietary, menuTitle, menuItems, price } = payload
+  if (!amount || !date || !name || !email) {
+    return { statusCode: 400, headers: HEADERS, body: JSON.stringify({ error: 'Missing required fields' }) }
   }
 
   try {
-    const merchantEmail = process.env.PAYPAL_MERCHANT_EMAIL || null
-    const orderId = await createOrder(amount, merchantEmail)
+    const orderId = await createOrder(amount, {
+      date, name, email,
+      dietary:   dietary || '',
+      menuTitle: menuTitle || '',
+      menuItems: Array.isArray(menuItems) ? menuItems.join(', ') : (menuItems || ''),
+      price:     String(price || amount),
+    })
     return { statusCode: 200, headers: HEADERS, body: JSON.stringify({ orderId }) }
   } catch (err) {
     console.error('paypal-create-order error:', err)

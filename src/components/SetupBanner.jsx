@@ -1,7 +1,7 @@
 // Shows first-run setup steps inline in the manager dashboard.
-// setup: { googleConnected, sheetsReady, paymentReady }
+// setup: { googleConnected, sheetsReady, paypalConnected }
 export default function SetupBanner({ setup }) {
-  const allDone = setup.googleConnected && setup.sheetsReady && setup.paymentReady
+  const allDone = setup.googleConnected && setup.sheetsReady && setup.paypalConnected
 
   if (allDone) return null
 
@@ -19,10 +19,10 @@ export default function SetupBanner({ setup }) {
         />
 
         <Step
-          done={setup.paymentReady}
+          done={setup.paypalConnected}
           number="2"
-          title="iDEAL payments ready"
-          desc={setup.paymentReady ? 'Mollie iDEAL is configured and ready to accept payments.' : 'Add MOLLIE_API_KEY to your Netlify environment variables to enable iDEAL payments.'}
+          title="PayPal configured"
+          desc={setup.paypalConnected ? 'PayPal is configured and ready to accept payments.' : 'Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to your Netlify environment variables.'}
         />
       </div>
     </div>

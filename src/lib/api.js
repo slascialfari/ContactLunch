@@ -1,5 +1,3 @@
-// All API calls go to Netlify Functions (same origin in both dev and production).
-
 async function callSheetsAPI(payload) {
   const res = await fetch('/.netlify/functions/api', {
     method: 'POST',
@@ -16,49 +14,44 @@ export function todayDate() {
   return new Date().toISOString().split('T')[0]
 }
 
-// ─── Auth ─────────────────────────────────────────────────────────────────────
-
 export async function getMe() {
   const res = await fetch('/.netlify/functions/me', { credentials: 'include' })
   if (!res.ok) throw new Error('Failed to fetch user status')
   return res.json()
 }
 
-export function startGoogleLogin() {
-  window.location.href = '/.netlify/functions/auth-google'
-}
+export function startGoogleLogin() { window.location.href = '/.netlify/functions/auth-google' }
+export function logout()           { window.location.href = '/.netlify/functions/logout' }
 
-export function logout() {
-  window.location.href = '/.netlify/functions/logout'
-}
+export async function getMenu(date = todayDate())   { return callSheetsAPI({ action: 'getMenu', date }) }
+export async function getOrders(date = todayDate()) { return callSheetsAPI({ action: 'getOrders', date }) }
+export async function publishMenu(p)                { return callSheetsAPI({ action: 'publishMenu', ...p }) }
+export async function markCollected(p)              { return callSheetsAPI({ action: 'markCollected', ...p }) }
 
-// ─── Sheets operations ────────────────────────────────────────────────────────
-
-export async function getMenu(date = todayDate()) {
-  return callSheetsAPI({ action: 'getMenu', date })
-}
-
-export async function getOrders(date = todayDate()) {
-  return callSheetsAPI({ action: 'getOrders', date })
-}
-
-export async function publishMenu({ date, title, items, price, deadline }) {
-  return callSheetsAPI({ action: 'publishMenu', date, title, items, price, deadline })
-}
-
-export async function markCollected({ orderNumber, date }) {
-  return callSheetsAPI({ action: 'markCollected', orderNumber, date })
-}
-
-// ─── Mollie iDEAL checkout ───────────────────────────────────────────────────
-
-export async function createMolliePayment({ amount, date, name, email, dietary, menuTitle, menuItems, price }) {
-  const res = await fetch('/.netlify/functions/mollie-create-payment', {
+export async function createPayPalOrder({ amount, date, name, email, dietary, menuTitle, menuItems, price }) {
+  const res = await fetch('/.netlify/functions/paypal-create-order', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ amount, date, name, email, dietary, menuTitle, menuItems, price }),
   })
   const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'Failed to create payment')
-  return data.checkoutUrl
+  if (!res.ok) throw new Error(data.error || 'Failed to create PayPal order')
+  return data.orderId
+}
+
+export async function capturePayPalOrder(paypalOrderId) {
+  const res = await fetch('/.netlify/functions/paypal-capture-order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paypalOrderId }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Capture failed')
+  return data
+}
+
+export async function checkOrderStatus(paypalOrderId) {
+  const res = await fetch(`/.netlify/functions/paypal-check-order?paypalOrderId=${encodeURIComponent(paypalOrderId)}`)
+  const data = await res.json()
+  return data // { found, orderNumber }
 }
