@@ -72,4 +72,4 @@ async function verifyWebhookSignature({ headers, rawBody, webhookId }) {
   return data.verification_status === 'SUCCESS'
 }
 
-module.exports = { createOrder, captureOrder, verifyWebhookSignature }
+module.exports = { getAppAccessToken, createOrder, captureOrder, verifyWebhookSignature }

@@ -28,6 +28,13 @@ export async function getOrders(date = todayDate()) { return callSheetsAPI({ act
 export async function publishMenu(p)                { return callSheetsAPI({ action: 'publishMenu', ...p }) }
 export async function markCollected(p)              { return callSheetsAPI({ action: 'markCollected', ...p }) }
 
+export async function getPayPalClientToken() {
+  const res = await fetch('/.netlify/functions/paypal-client-token')
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Failed to get client token')
+  return data.clientToken
+}
+
 export async function createPayPalOrder({ amount, date, name, email, dietary, menuTitle, menuItems, price }) {
   const res = await fetch('/.netlify/functions/paypal-create-order', {
     method: 'POST',

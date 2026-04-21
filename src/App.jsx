@@ -24,7 +24,7 @@ export default function App() {
       'client-id': paypalClientId,
       currency:    'EUR',
       intent:      'capture',
-      components:  'hosted-fields',
+      components:  'buttons',
     }}>
       <BrowserRouter>
         <Routes>
