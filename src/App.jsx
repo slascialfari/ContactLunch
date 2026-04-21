@@ -24,8 +24,7 @@ export default function App() {
       'client-id': paypalClientId,
       currency:    'EUR',
       intent:      'capture',
-      components:  'buttons',
-      ...(paypalEnv === 'sandbox' ? { 'buyer-country': 'NL' } : {}),
+      components:  'hosted-fields',
     }}>
       <BrowserRouter>
         <Routes>

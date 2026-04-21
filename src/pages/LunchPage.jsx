@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { PayPalButtons, usePayPalScriptReducer } from '@paypal/react-paypal-js'
+import { PayPalHostedFieldsProvider, PayPalHostedField, usePayPalHostedFields } from '@paypal/react-paypal-js'
 import { getMenu, todayDate, createPayPalOrder, capturePayPalOrder, checkOrderStatus } from '../lib/api.js'
 import MenuDisplay      from '../components/MenuDisplay.jsx'
 import OrderForm        from '../components/OrderForm.jsx'
@@ -189,10 +189,8 @@ export default function LunchPage() {
 
 // ── PaymentPanel ──────────────────────────────────────────────────────────────
 function PaymentPanel({ menu, guestDetails, onStartPolling, onError, onBack }) {
-  const [{ isPending }] = usePayPalScriptReducer()
-
   async function handleCreateOrder() {
-    const orderId = await createPayPalOrder({
+    return createPayPalOrder({
       amount:    menu.price,
       date:      todayDate(),
       name:      guestDetails.name,
@@ -202,16 +200,6 @@ function PaymentPanel({ menu, guestDetails, onStartPolling, onError, onBack }) {
       menuItems: menu.items,
       price:     menu.price,
     })
-    return orderId
-  }
-
-  async function handleApprove(data) {
-    try {
-      await capturePayPalOrder(data.orderID)
-      onStartPolling(data.orderID)
-    } catch (err) {
-      onError('Payment capture failed: ' + err.message)
-    }
   }
 
   return (
@@ -222,19 +210,102 @@ function PaymentPanel({ menu, guestDetails, onStartPolling, onError, onBack }) {
         <strong>{guestDetails?.name}</strong>
       </p>
 
-      {isPending && <div style={styles.spinner} />}
-
-      <PayPalButtons
-        style={{ layout: 'vertical', shape: 'rect', label: 'pay' }}
+      <PayPalHostedFieldsProvider
         createOrder={handleCreateOrder}
-        onApprove={handleApprove}
-        onError={(err) => onError('PayPal error: ' + (err?.message || 'unknown'))}
-        fundingSource={undefined}
-      />
+        styles={{
+          '.valid':   { color: '#6aaa64' },
+          '.invalid': { color: '#e07070' },
+          input: {
+            'font-size':   '0.95rem',
+            'font-family': 'system-ui, sans-serif',
+            color:         '#e8e0d0',
+          },
+        }}
+      >
+        <CardForm
+          onApprove={async (orderId) => {
+            await capturePayPalOrder(orderId)
+            onStartPolling(orderId)
+          }}
+          onError={onError}
+        />
+      </PayPalHostedFieldsProvider>
 
       <button style={styles.backBtn} onClick={onBack}>← Back</button>
     </div>
   )
+}
+
+function CardForm({ onApprove, onError }) {
+  const hostedFields = usePayPalHostedFields()
+  const [cardName, setCardName]   = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handlePay() {
+    if (!cardName.trim()) { onError('Please enter the name on your card.'); return }
+    setSubmitting(true)
+    try {
+      const result = await hostedFields.cardFields.submit({ cardholderName: cardName })
+      await onApprove(result.orderId)
+    } catch (err) {
+      onError('Payment failed: ' + (err?.message || 'unknown error'))
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div style={cardStyles.form}>
+      <label style={cardStyles.label}>
+        Name on card
+        <input
+          style={cardStyles.input}
+          value={cardName}
+          onChange={(e) => setCardName(e.target.value)}
+          placeholder="J. Smith"
+          autoComplete="cc-name"
+        />
+      </label>
+
+      <label style={cardStyles.label}>
+        Card number
+        <div style={cardStyles.hostedField}>
+          <PayPalHostedField hostedFieldType="number" options={{ placeholder: '1234 5678 9012 3456' }} />
+        </div>
+      </label>
+
+      <div style={cardStyles.row}>
+        <label style={{ ...cardStyles.label, flex: 1 }}>
+          Expiry date
+          <div style={cardStyles.hostedField}>
+            <PayPalHostedField hostedFieldType="expirationDate" options={{ placeholder: 'MM / YY' }} />
+          </div>
+        </label>
+        <label style={{ ...cardStyles.label, flex: 1 }}>
+          CVV
+          <div style={cardStyles.hostedField}>
+            <PayPalHostedField hostedFieldType="cvv" options={{ placeholder: '123' }} />
+          </div>
+        </label>
+      </div>
+
+      <button
+        style={submitting ? { ...cardStyles.payBtn, opacity: 0.6, cursor: 'not-allowed' } : cardStyles.payBtn}
+        onClick={handlePay}
+        disabled={submitting}
+      >
+        {submitting ? 'Processing…' : `Pay €${''}`}
+      </button>
+    </div>
+  )
+}
+
+const cardStyles = {
+  form:        { display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' },
+  label:       { display: 'flex', flexDirection: 'column', gap: '0.35rem', fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--chalk-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  input:       { background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--chalk)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', padding: '0.65rem 0.8rem', outline: 'none', width: '100%', boxSizing: 'border-box' },
+  hostedField: { background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.65rem 0.8rem', height: '2.6rem' },
+  row:         { display: 'flex', gap: '1rem' },
+  payBtn:      { background: 'var(--amber)', color: 'var(--bg)', border: 'none', borderRadius: 'var(--radius)', fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '1rem', padding: '0.85rem', cursor: 'pointer', marginTop: '0.5rem' },
 }
 
 const styles = {
