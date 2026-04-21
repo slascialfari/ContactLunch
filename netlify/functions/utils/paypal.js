@@ -29,6 +29,10 @@ async function createOrder(amount, meta = {}) {
         description: 'Canteen lunch subscription',
         custom_id:   JSON.stringify(meta),
       }],
+      application_context: {
+        shipping_preference: 'NO_SHIPPING',
+        user_action:         'PAY_NOW',
+      },
     }),
   })
   const data = await res.json()
